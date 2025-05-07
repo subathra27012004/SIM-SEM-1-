@@ -1,0 +1,26 @@
+Characters:
+C - represent close value
+O - represent open value
+H - represent high value
+L - represent low value
+X - the connector between all the symbols       
+
+Sample Graph:
+10|
+9 |
+8 |  H
+7 |  X
+6 |  O
+5 |  X
+4 |  X
+3 |  X
+2 |  X
+1 |  C
+0 |  X
+-1|  X
+-2|  X
+-3|  X
+-4|  L
+-5|  
+-------------
+    Year    
