@@ -1,0 +1,1156 @@
+// Name : Subathra Sundarbabu 
+// Student ID : 10263704
+// Module Code : CM 2030
+// Module Name : Graphics Programming
+// Date : 6th Jan 2024 
+
+/** Commentary:
+ 
+This snooker game is build using the Matter.js library. This library helped me simulate how the cue ball moves and interacts with other balls on the table.
+
+Cue stick interactions: 
+I decided to use a mouse-based control for the cue stick because it is simple and easy for players to understand. By moving the mouse, players can control the angle
+and distance of the cue stick from the ball, and by clicking lets them strike the cue ball. I added 'S' and 'L' keys to adjust the cue's length, making the game 
+more interactive and realistic.
+
+Extension:
+
+    1.	Cue Stick Adjustments: Players can change the length of the cue stick during the game. A shorter stick is better for precise shots, while a longer stick provides 
+    more reach for certain angles. However, the power of the shot depends on the force selected by the player, not the stick's length, ensuring that gameplay is 
+    skill-based and fair.
+
+    2.	Table and Ball Images: I included images of the table and balls to make the game visually appealing. I created these images myself using Canva, which allowed me 
+    to design, high-quality visuals that enhance the overall look of the game.
+
+    3.	Audio Effects: I added sounds that play when the cue stick hits the cue ball and when a life is lost. These sounds make the game feel more alive and immersive. 
+    I created the music myself using the GarageBand app, which allowed me to design custom audio tracks.
+
+    4.	Lives System: I introduced a lives system where players lose a life if they pocket the cue ball. Lives are displayed as heart icons on the screen, making it easy 
+    for players to track their mistakes. Heart icons was also created by me using canva.
+
+    5.	Score System: I added a scoring system based on real snooker rules. Different balls give different points, and there is a score deduction if the player pockets 
+    two coloured balls in a row. This makes the game more challenging and encourages careful planning.
+
+    6.	Winning Condition: Players win the game when they reach a maximum score of 149. I added a congratulatory message for this, giving players a sense of 
+    accomplishment.
+
+Overall Experience:
+Working on this project taught me a lot about game design and coding. I faced challenges with creating realistic physics and adding interactive features like 
+adjustable cue lengths and scoring. However, solving these problems helped me improve my problem-solving skills. I enjoyed experimenting with visuals, sounds, 
+and gameplay mechanics to make the game both fun and educational.
+
+Unique Idea
+What makes my project special is the adjustable cue stick combined with realistic physics. These features make the game feel real and engaging. Together with the 
+images, sounds, and scoring system, the game provides a complete and enjoyable snooker experience.
+
+In conclusion, this project brings together easy controls, realistic physics, and custom visuals and sounds to create a fun and engaging snooker game. Overall, It 
+was a wonderful experience.
+
+ */
+
+// Import Matter Library
+let Engine = Matter.Engine,
+    Render = Matter.Render,
+    World = Matter.World,
+    Bodies = Matter.Bodies,
+    Body = Matter.Body;
+
+//  Variables for snooker table dimensions
+let table_width, table_height;
+
+// Variable to store the Table Image
+let tableImage;
+
+// Variable to store the Ball Image
+let ballImages = {red: []};
+
+// Variables to store Ball dimensions
+let ball_diameter, ball_radius;
+
+// Array to store all balls
+let snooker_balls = [];
+
+// Variable to track cue ball repositioning
+let Reposition_CueBall = true;
+
+// Variable to store cue stick
+let cue;
+// Variable to store cue stick length and width
+let cue_length, cue_width;
+
+//Variable to make the cue stick longer and shorter
+let halvingCount = 0;
+let biggerCount = 0;
+
+// Dictionary to store Ball colors
+const ball_colour = { red: 'red', yellow: 'yellow', green: 'green', brown: 'brown', blue: 'blue', pink: 'pink', black: 'black', white: 'white'};
+
+// Ball mode set to 0
+let ball_mode = 0;
+
+// Variable to store the last collision data
+let collision_l = '';
+
+// Variable to track debug mode
+let debug_mode = false;
+
+// Variable to track consecutive pockets from colour ball
+let two_coloured_ball_pocketed = 0;
+
+// Variable to store the balls to return to original place
+let return_balls = [];
+
+// Variable to set a timer to display text on screen
+let Timer = 0;
+
+// Variable to store the lives
+let lives = 5;
+
+// Variable to store the heart image to represent the lives
+let heartImage;
+
+// Variable to store game over option
+let isGameOver = false;
+
+// Variable to store the restart button
+let restartButton;
+
+// Variable to track the score
+let score = 0;
+
+// Variable to track if the game is won
+let gameWon = false;
+
+// Dictionary for the scores
+const ball_values = { red: 1, yellow: 2, green: 3, brown: 4, blue: 5, pink: 6, black: 7};
+
+// Store the last colored balls to subtract the score from the scoring
+let last_colored_balls = [];
+
+
+// Preload function to load images
+function preload() {
+ 
+    // Load the table image
+    tableImage = loadImage('images/table.png', () => console.log('Table image loaded successfully!'));
+
+    // Load images for red balls
+    ballImages.red = [];
+    for (let i = 1; i <= 15; i++) {
+        ballImages.red.push(loadImage(`images/ball_${i}.png`));
+    }
+
+    // Load the sound for cue stick hitting the cue ball
+    hitSound = loadSound('music/track1.mp3', () => console.log('Hit sound loaded successfully!'));
+
+    // Load the sound for lives deducting
+    liveSound = loadSound('music/life_deduct_track.mp3', () => console.log('lives sound loaded successfully!'));
+
+    // Load the heart image for lives
+    heartImage = loadImage('images/Lives.png', () => console.log('Heart image loaded successfully!'));
+}
+
+// Set-up function
+function setup() {
+    // Set up a canvas 800 x 400
+    createCanvas(800, 400);
+
+    // Set up the physics engine using Matter.js
+    engine = Engine.create();
+
+    // Disable gravity
+    engine.world.gravity.y = 0;
+
+    // Store table Width
+    table_width = width * 1.0;
+
+    // Store table height
+    table_height = height * 1.0;
+
+    // Store the diameter of balls
+    ball_diameter = table_width / 36;
+
+    // Store the radius of balls
+    ball_radius = ball_diameter / 2;
+
+    // Store the length of the cue
+    cue_length = -width / 5;
+
+    // Store the width of the cue
+    cue_width = width / 180;
+
+    // Create the table
+    snooker_Table = new Table(table_width, table_height);
+
+    // Create the cueball
+    start_CueBall = new CueBall({ x: width / 3, y: height / 2 }, false);
+
+    // Create the cue stick
+    cue = new cue_stick(cue_length, cue_width,'#3e2b1f', start_CueBall);
+
+    // Arrange the game balls on the table
+    Ball.set_balls(ball_mode);
+
+    // The 6 pockets in the table
+    pockets = [
+        // Top Left corner
+        { x: (width - table_width) / 2 + 45, y: (height - table_height) / 2 + 40},
+        // Top Center
+        { x: width / 2 - 8, y: (height - table_height) / 2 + 40 },
+        // Top Right corner
+        { x: (width + table_width) / 2 - 45, y: (height - table_height) / 2 + 40 },
+        // Bottom Left corner
+        { x: (width - table_width) / 2 + 45, y: (height + table_height) / 2 - 40},
+        // Bottom Center
+        { x: width / 2 - 3, y: (height + table_height) / 2 - 40 },
+        // Bottom Right corner
+        { x: (width + table_width) / 2 - 45, y: (height + table_height) / 2 - 40}
+    ];
+
+    // collision events
+    Matter.Events.on(engine, 'collisionStart', function(event) {collision(event);});
+
+    // Create the Restart button
+    restartButton = createButton('Restart Game');
+
+    // The position of the restart button
+    restartButton.position(width / 2 - 50, height / 2 + 50);
+
+    // Mouse Pressed function of the restart button
+    restartButton.mousePressed(restartGame);
+    restartButton.hide();
+}
+
+// Draw Function
+function draw() {
+    // White background
+    background(255);
+
+    // Game Over
+    if (isGameOver) {
+        // Set background color to be black
+        background(0);
+        // Align text to center
+        textAlign(CENTER, CENTER);
+        // Fill the text to be red
+        fill(255, 0, 0);
+        // Set the text size to be 80
+        textSize(80);
+        // The text to be printed
+        text("Game Over", width / 2, height / 2);
+        // Show the restart button
+        restartButton.show();
+        return;
+    }
+
+    // Game Won
+    if (gameWon) {
+        // Set the background to be black
+        background(0);
+        // Align text to center
+        textAlign(CENTER, CENTER);
+        // Fill the text to be green
+        fill(0, 255, 0);
+        // Set the text size to be 80
+        textSize(80);
+        // The text to be printed
+        text("Congratulations!", width / 2, height / 2 - 40);
+        // Set the text size to be 40
+        textSize(40);
+        // The text to be printed
+        text("You reached the maximum score of 149!", width / 2, height / 2 + 20);
+        // Show the restart button
+        restartButton.show();
+        return;
+    }
+
+    // Table Image
+    if (tableImage) {
+        // Draws the table image centered on the canvas with an additional offset
+        image(tableImage, (width - table_width) / 2 + 400, (height - table_height) / 2 + 200, table_width, table_height);
+    }
+
+    // Show lives on the screen
+    displayLives();
+
+    // Show all the balls
+    snooker_balls.forEach(ball => ball.display());
+
+    // Move the cue ball if it can be repositioned, otherwise update the game engine
+    if (Reposition_CueBall && (!Ball_movement() || ball_mode === 3)) {
+        // Change the cue ball position to new one within the D
+        Matter.Body.setPosition(window.cueBall, D_point(mouseX, mouseY));
+    } else {
+        // Update the engine
+        Engine.update(engine);
+    }
+
+    // Update and display the cue stick
+    if ((!Reposition_CueBall && (!Ball_movement() || cue.striking)) || ((!Reposition_CueBall && ball_mode == 3))) {
+        // update cue stick postion
+        cue.Pos_update();
+        // Show the cue stick on the screen
+        cue.display();
+    }
+
+    // checks if a ball has been pocketed
+    for (let i = snooker_balls.length - 1; i >= 0; i--) { 
+        // Retrieves the ball object from the snooker_balls array
+        let ball = snooker_balls[i];
+        // Retrieves the ball current position
+        let ball_position = ball.body.position;
+
+        // Check collision with each pocket for all balls
+        for (let pocket of pockets) {
+            let distance = dist(ball_position.x, ball_position.y, pocket.x, pocket.y);
+
+            // If the ball is with the radius, it is considered to be pocketed.
+            if (distance < ball_radius * 3.0) {
+                World.remove(engine.world, ball.body);
+
+                // If the cue ball is pocketed, the number of lives will be deducted until 5 lives is over.
+                if (ball instanceof CueBall) {
+                    // Reduce 1 live
+                    lives--;
+
+                    // Play the live background sound
+                    if (liveSound) {
+                        liveSound.play();
+                    }
+
+                    // Check is all the lives are over
+                    if (lives <= 0) {
+                        isGameOver = true;
+                    }
+
+                    // Return the ball to the table
+                    return_balls.push(ball);
+
+                } else if (ball.colour in ball_values){
+                    // Update score for pocketed ball
+                    updateScore(ball.colour);
+
+                    // Return the color balls back to the original location if it is pockets
+                    // Ball Yellow
+                    if (ball.colour === ball_colour.yellow) {
+                        snooker_balls.push(new Ball(ball_colour.yellow, { x: width / 2 - ball_diameter * 10, y: height / 2 + ball_diameter * 3 
+                        }));
+                    // Ball Green
+                    } else if (ball.colour === ball_colour.green) {
+                        snooker_balls.push(new Ball(ball_colour.green, { x: width / 2 - ball_diameter * 10, y: height / 2 - ball_diameter * 3 
+                        }));
+                    // Ball Brown
+                    } else if (ball.colour === ball_colour.brown) {
+                        snooker_balls.push(new Ball(ball_colour.brown, { x: width / 2 - ball_diameter * 10, y: height / 2 
+                        }));
+                    // Ball Blue
+                    } else if (ball.colour === ball_colour.blue) {
+                        snooker_balls.push(new Ball(ball_colour.blue, { x: width / 2, y: height / 2 
+                        }));
+                    // Ball Pink
+                    } else if (ball.colour === ball_colour.pink) {
+                        snooker_balls.push(new Ball(ball_colour.pink, { x: width / 2 + ball_diameter * 9 - ball_diameter, y: height / 2 
+                        }));
+                    // Ball Black
+                    } else if (ball.colour === ball_colour.black) {
+                        snooker_balls.push(new Ball(ball_colour.black, { x: width / 2 + ball_diameter * 15, y: height / 2 
+                        }));
+                    }
+                    
+                    // If stated color of balls are pocketed, considered to be 2 consecutive balls
+                    if (
+                        ball.colour === ball_colour.green ||
+                        ball.colour === ball_colour.brown ||
+                        ball.colour === ball_colour.yellow ||
+                        ball.colour === ball_colour.pink ||
+                        ball.colour === ball_colour.black ||
+                        ball.colour === ball_colour.blue
+                    ) {
+                        // Increment for two_coloured_ball_pocketed
+                        two_coloured_ball_pocketed++;
+                    
+                        // Add the ball's colour to the history
+                        last_colored_balls.push(ball.colour);
+                    
+                        // Keep only the last two balls in the history
+                        if (last_colored_balls.length > 2) {
+                            last_colored_balls.shift();
+                        }
+                    
+                        // Check if two consecutive colored balls are pocketed
+                        if (two_coloured_ball_pocketed === 2) {
+                            console.log("2 consecutive coloured balls pocketed!");
+                    
+                            // Subtract scores of the last two pocketed balls
+                            for (let colour of last_colored_balls) {
+                                if (colour in ball_values) {
+                                    const ballScore = ball_values[colour];
+                                    // Ensure score doesn't go below 0
+                                    score = Math.max(0, score - ballScore);
+                                    // Message to display in the console
+                                    console.log(`Deducted ${ballScore} for ${colour}. New score: ${score}`);
+                                }
+                            }
+
+                            // Set timer for displaying the message
+                            Timer = 5 * 30;
+                    
+                            // Reset for next sequence
+                            two_coloured_ball_pocketed = 0;
+                            last_colored_balls = [];
+                        }
+                    } else {
+                        // Reset if a non-colored ball is pocketed
+                        two_coloured_ball_pocketed = 0;
+                        last_colored_balls = [];
+                    }
+                    
+                }
+                // Remove the ball from the array
+                snooker_balls.splice(i, 1);
+                
+            }
+        }
+    }
+
+    // Properties to Display Message
+    if (Timer > 0) {
+        push();
+        // Fill with white
+        fill(255);
+
+        // Strokeweight of 4
+        strokeWeight(4);
+
+        // Stroke of 50
+        stroke(50);
+
+        // Text Allignment
+        textAlign(CENTER, CENTER);
+
+        // Text size
+        textSize(20);
+
+        // Text to be displayed
+        text("2 consecutive coloured balls pocketed!", width / 2, height / 2);
+        pop();
+
+        // Decrement of the timer
+        Timer--;
+    }
+
+    if ((!Ball_movement() && return_balls.length > 0) || (!Reposition_CueBall && ball_mode == 3)) {
+        // Iterate through the list of balls to return back to original position
+        for (let ball of return_balls) {
+            // Returning the cue ball to the original place
+            if (ball instanceof CueBall) {
+                // Flag indicating that the cue ball is being repositioned
+                isRepositioningCueBall = true;
+                // Call the function to reset the cue ball's physics
+                CueBall_Physics();
+            };
+        };
+        // Clear the list of balls after done
+        return_balls = [];
+    }
+
+
+    // Debugging
+    if (debug_mode) {
+        // Display the collision information
+        Collision_Info();
+        // Outline to debug the view of the table
+        debug_outline();
+    }
+}
+
+// Outline of the debug mode
+function debug_outline() {
+    const bodies = Matter.Composite.allBodies(engine.world);
+    const pocketRadius = 20;
+
+    // Draw the table outline
+    push();
+    noFill();
+    stroke(255, 0, 0);
+    strokeWeight(2);
+
+    // Draw the sides of the table
+    bodies.forEach(body => {
+        beginShape();
+        body.vertices.forEach(v => vertex(v.x, v.y));
+        endShape(CLOSE);
+    });
+    pop();
+
+    // Draw pockets
+    pockets.forEach(pocket => {
+        fill(255, 0, 0);
+        noStroke();
+        ellipse(pocket.x, pocket.y, pocketRadius * 2);
+    });
+}
+
+// Key press function
+function keyPressed() {
+    let cueBallPosition = D_point(width / 2, height / 2);
+
+    // Handle ball modes and reset cue ball
+    if (key === '1' || key === '2' || key === '3') {
+        ball_mode = key === '1' ? 0 : key === '2' ? 1 : 2;
+        // Update the balls based on the selected ball mode
+        Ball.set_balls(ball_mode);
+
+        // If the cue ball exists, reset its position and velocity
+        if (window.cueBall) {
+            Matter.Body.setPosition(window.cueBall, cueBallPosition);
+            Matter.Body.setVelocity(window.cueBall, { x: 0, y: 0 });
+        }
+
+        // Flag that the cue ball is being repositioned
+        Reposition_CueBall = true;
+
+        // Disable cue stick
+        if (cue) cue.striking = false;
+    }
+
+    // Debug mode
+    if (key === 'D' || key === 'd') {
+        debug_mode = !debug_mode;
+    }
+
+    // Adjust cue stick length
+    // To make the cue stick shorter
+    if (key === 'S' || key === 's' && halvingCount < 2) {
+        cue.length /= 2;
+        halvingCount++;
+
+    // To make the cue stick longer
+    } else if (key === 'L' || key === 'l' && biggerCount < 1) {
+        cue.length *= 2;
+        biggerCount++;
+
+    // To make the cue stick back to its original length
+    } else if (key === 'B' || key === 'b') {
+        cue.length = cue_length;
+        halvingCount = 0;
+        biggerCount = 0;
+    }
+
+    // Adjust cue stick force
+    // Increase the force
+    if (keyIsDown(UP_ARROW)) { 
+        cue.Force_change(true);
+    }
+    // Decrease the force
+    else if (keyIsDown(DOWN_ARROW)) {
+         cue.Force_change(false);
+    }
+}
+
+
+// Function to update the score when a ball of a specific color is potted
+function updateScore(ballColor) {
+    // Check if the ball color exists
+    if (ball_values[ballColor]) {
+        // Calculate the potential score after adding the ball points
+        const potentialScore = score + ball_values[ballColor];
+
+        // If the potential score exceeds the maximum of 149, don't add the points
+        if (potentialScore > 149) {
+            console.log(`Cannot add ${ball_values[ballColor]} points for ${ballColor} ball. Maximum score reached.`);
+        } else {
+            // Otherwise, add the points to the score
+            score += ball_values[ballColor];
+            console.log(`Scored ${ball_values[ballColor]} points for pocketing a ${ballColor} ball!`);
+            console.log(`Total Score: ${score}`);
+
+            // Check if the player has reached the maximum score of 149
+            if (score === 149) {
+                // Mark the game as won
+                gameWon = true;
+                console.log("Congratulations! You've reached the maximum score of 149.");
+            }
+        }
+    }
+}
+
+
+// Control mouse movements for the cue stick
+function mouseMoved() {
+    if (cue && !cue.striking && !Reposition_CueBall) {
+        // Calculate the Angle
+        cue.Angle(mouseX, mouseY, cue.cueBallInstance.body.position);
+
+        // Calculate the distance
+        let mouse_control = dist(mouseX, mouseY, cue.cueBallInstance.body.position.x, cue.cueBallInstance.body.position.y);
+
+        // Update the cue stick position
+        cue.update_cuestick(mouse_control);
+    };
+};
+
+// Function to handle the mouse click event used to strike the cue ball
+function mouseClicked() {
+    // Check if the cue ball is in repositioning mode
+    if (Reposition_CueBall) {
+        // If left mouse button is clicked within the 'D' area, reposition the cue ball
+        if (mouseButton === LEFT && inside_D(mouseX, mouseY)) {
+             // End the repositioning mode
+            Reposition_CueBall = false;
+            // Stop the cue ball's movement
+            Matter.Body.setVelocity(window.cueBall, { x: 0, y: 0 }); 
+        }
+        return;
+    }
+
+    // Check if the cue ball is not moving
+    const cueBallIsStationary = Math.abs(window.cueBall.velocity.x) < 0.01 &&
+                                Math.abs(window.cueBall.velocity.y) < 0.01 &&
+                                Math.abs(window.cueBall.angularVelocity) < 0.01;
+
+    // If the cue ball is not moving and no strike is in ongoing, trigger the cue strike
+    if (cueBallIsStationary && !cue.striking) {
+        // Strike the cue ball using the cue object
+        cue.strike(window.cueBall);
+    }
+}
+
+// After repositioning cue ball, reinstate physics
+function CueBall_Physics() {
+    // Create a new CueBall within the D area
+    let cueBall = new CueBall((D_point(width / 4, height / 2)), true);
+
+    // Add to the list of snooker balls
+    snooker_balls.push(cueBall);
+    window.cueBall = cueBall.body;
+    cue.cueBallInstance = cueBall;
+};
+
+// 'D' area on the snooker table
+function D_point(x, y) {
+    // Define the center and radius of the 'D' area
+    const centerX = width / 4 + ball_diameter * 1.2 - 70;
+    const centerY = height / 2;
+    const radius = table_width / 12;
+
+    // Calculate the angle and distance between the point and the center of the 'D'
+    let angle = atan2(y - centerY, x - centerX);
+    let distance = dist(x, y, centerX, centerY);
+
+    // If the point is outside the 'D' area, reposition it to the edge
+    if (distance > radius) {
+        // Position along the edge in the x direction
+        x = centerX + radius * cos(angle); 
+        // Position along the edge in the y direction
+        y = centerY + radius * sin(angle); 
+    }
+
+    // Ensure the x-coordinate does not exceed the boundary of the 'D'
+    x = min(x, centerX);
+    return { x, y };
+}
+
+// Ensure it is inside the d area
+function inside_D(x, y) {
+    return dist(x, y, (width / 4 + ball_diameter *1.2 - 70), (height / 2)) <= (table_width / 12) && x <= (width / 4 + ball_diameter *1.2 - 70);
+};
+
+// To detect collisions involving the cue ball
+function collision(event) {
+    // Loop through all collision pairs in the event
+    event.pairs.forEach(pair => {
+        // Check if the cue ball is part of the collision pair
+        let cueBall = window.cueBall;
+        let otherBody = (pair.bodyA === cueBall) ? pair.bodyB : (pair.bodyB === cueBall ? pair.bodyA : null);
+
+        // If the cue ball is involved, log the type of collision
+        if (otherBody) {
+            // If the cue ball hits a cushion, log the event
+            if (otherBody.label === 'Cushion') {
+                collision_l = 'Cue ball hit a cushion';
+                console.log(collision_l);
+            } 
+            // If the cue ball hits another ball, log the event along with the ball color
+            else if (otherBody.label === 'Ball') {
+                collision_l = 'Cue ball hit a ' + otherBody.render.fillStyle + ' ball';
+                console.log(collision_l);
+            }
+        }
+    });
+}
+
+// collision information
+function Collision_Info() {
+    push();
+    // Set the text colour to white
+    fill(255);
+    // Set the text size
+    textSize(16);
+    // Show the text at the stated place in the canvas
+    text(collision_l, 100, height - 10);
+    pop();
+};
+
+// To check other ball movements
+function Ball_movement() {
+    return snooker_balls.some(ball => Math.abs(ball.body.velocity.x) > 0.01 || Math.abs(ball.body.velocity.y) > 0.01);
+}
+
+// Function to display heart 
+function displayLives() {
+    // Size of the hear
+    let heartSize = 25;
+
+    // Loop to import the heart image 5 times
+    for (let i = 0; i < lives; i++) {
+        if (heartImage) {
+            image(heartImage, 130 + i * (heartSize + 5), 10, heartSize, heartSize);
+        }
+    }
+}
+
+// Function to restart the game
+function restartGame() {
+    // Reset the lives to be 5
+    lives = 5;
+    // Reset the score to be 0
+    score = 0;
+    isGameOver = false;
+    // Reset the gameWon flag
+    gameWon = false;
+    return_balls = [];
+    Ball.set_balls(0);
+    restartButton.hide();
+    console.log("Game restarted. Good luck!");
+}
+
+// Cue stick class
+class cue_stick {
+    // Constructor values
+    constructor(length, width, colour, cueBall) {
+        this.length = length;
+        this.width = width;
+        this.colour = colour;
+        this.x = cueBall.position.x;
+        this.y = cueBall.position.y;
+        this.angle = 0;
+        this.striking = false;
+        this.cueBallInstance = cueBall;
+        this.forceMultiplier = 5;
+
+    };
+
+    // Position update
+    Pos_update() {
+        // no strike cue ball existed update
+        if (this.cueBallInstance && !this.striking) {
+            let cueBallPos = this.cueBallInstance.body.position;
+            this.x = cueBallPos.x - ball_diameter * cos(this.angle);
+            this.y = cueBallPos.y - ball_diameter * sin(this.angle);
+            // Cue ball stays inside the table
+            this.cueBallInstance.constrainPosition();
+        };
+    };
+
+    // Angle of the cue stick
+    Angle(mouseX, mouseY, cueBallPos) {
+        // Change the cue stick angle
+        this.angle = atan2(cueBallPos.y - mouseY, cueBallPos.x - mouseX);
+    };
+
+    // Adjust the cue stick's rear end position based on the distance of the mouse
+    update_cuestick(mouseDist) {
+        // Prevent excessive cue movement by applying a minimum threshold
+        if (mouseDist > 10) {
+            // Limit the cue's rear end movement to a maximum offset
+            let offset = min(mouseDist - 10, 100);
+            // Update the rear end's position based on the calculated offset
+            this.x += offset * cos(this.angle);
+            this.y += offset * sin(this.angle);
+        }
+    };
+
+    // Determines the force to apply
+    getForceBasedOnDistance() {
+        let cueBallPos = this.cueBallInstance.body.position;
+        // Calculate and return the force
+        return map(dist(this.x, this.y, cueBallPos.x, cueBallPos.y), 50, this.length, 0.001, 0, true);
+    };
+
+    // Change force for the cue stick
+    Force_change(increase) {
+        // Increase by 0.2
+        if (increase && this.forceMultiplier < 10) {
+            this.forceMultiplier += 0.2;
+        // Decrease by 0.2
+        } else if (!increase && this.forceMultiplier > 1) {
+            this.forceMultiplier -= 0.2;
+        };
+    };
+
+    // Control the cue stick
+    strike(cueBall) {
+        // If the cue ball is in the table and is not striking 
+        if (!this.striking && cueBall) {
+            this.striking = true;
+            // Sound when hitting the cue ball
+            if (hitSound) {
+                hitSound.play();
+            }
+            // The cue strike animation
+            this.cue_strike(cueBall, () => {
+                // Determine the force vector
+                let forceDirection = p5.Vector.fromAngle(this.angle);
+                // Apply the force to the cue ball
+                Body.applyForce(cueBall, cueBall.position, forceDirection.mult((0.001 * this.forceMultiplier)));
+                setTimeout(() => {this.striking = false;}, 500);
+            });
+        };
+    };
+
+    // The cue stick strike motions
+    cue_strike(cueBall, callback) {
+        // Store the original position of the cue stick before starting the animation
+        let original_pos = { x: this.x, y: this.y };
+
+        // The pull-back phase of the cue stick
+        for (let i = 0; i < (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625)))); i++) {
+            setTimeout(() => {
+                // Gradually move the cue stick backwards during the pull-back phase
+                this.x = lerp(original_pos.x, original_pos.x + (map(this.forceMultiplier, 1, 10, 0, (this.length / 2))) * cos(this.angle), (i / (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625))))));
+                this.y = lerp(original_pos.y, original_pos.y + (map(this.forceMultiplier, 1, 10, 0, (this.length / 2))) * sin(this.angle), (i / (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625))))));
+            }, ((((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4) / (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625))))) * i);
+        };
+
+        // Define starting position after the pull-back phase
+        let Start_pos = {
+            x: original_pos.x + (map(this.forceMultiplier, 1, 10, 0, (this.length / 2))) * cos(this.angle),
+            y: original_pos.y + (map(this.forceMultiplier, 1, 10, 0, (this.length / 2))) * sin(this.angle)
+        };
+
+        // Define the target position where the cue stick contacts the cue ball
+        let contact_pos = {
+            x: cueBall.position.x + ball_radius * cos(this.angle),
+            y: cueBall.position.y + ball_radius * sin(this.angle)
+        };
+
+        // Animate the forward strike phase of the cue stick
+        for (let i = 0; i < (60 - (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625))))); i++) {
+            setTimeout(() => {
+                // Gradually move the cue stick forward to strike the cue ball
+                this.x = lerp(Start_pos.x, contact_pos.x - (ball_radius * 2) * cos(this.angle), (i / (60 - (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625)))))));
+                this.y = lerp(Start_pos.y, contact_pos.y - (ball_radius * 2) * sin(this.angle), (i / (60 - (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625)))))));
+
+                // Trigger the callback function once the strike phase is complete
+                if (i === (60 - (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625))))) - 1 && callback) {
+                    callback();
+                };
+            }, (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4) + (((map(this.forceMultiplier, 1, 10, 375, 625)) / 4) / (60 - (Math.round((60 * (((map(this.forceMultiplier, 1, 10, 375, 625)) * 3) / 4)) / (map(this.forceMultiplier, 1, 10, 375, 625)))))) * i);
+        };
+    };
+
+    // Cue stick design
+    display() {
+        // Save the current drawing state to restore it later
+        push();
+        
+        // Translate the canvas to the cue's current position
+        translate(this.x, this.y);
+        
+        // Rotate the canvas based on the cue's current angle
+        rotate(this.angle);
+
+        // Calculate the shaft length of the cue as a proportion of the total length
+        const shaftLength = (29 / 58.5) * this.length;
+        
+        // Calculate the tip length of the cue as a proportion of the total length
+        const tipLength = (0.5 / 58.5) * this.length;
+        
+        // Calculate the tip width of the cue as a proportion of the total width
+        const tipWidth = (0.4 / 1.18) * this.width;
+
+        // Draw the shaft of the cue stick, with a dark wood-like color
+        fill('#3e2b1f');
+        rect(shaftLength, -this.width / 2, shaftLength, this.width);
+
+        // Draw the tip part of the cue stick, with a light wood-like color
+        fill('#F8E2A4');
+        rect(tipLength, -this.width / 2, shaftLength, this.width);
+
+        // Draw the tip of the cue stick with a grey color
+        fill('#808080');
+        rect(3 * tipLength / 4, -tipWidth / 2, tipLength, tipWidth);
+
+        // Restore the previous drawing state
+        pop();
+    }
+
+}
+
+class Table {
+    // Constructor for the table 
+    constructor(width, height) {
+        // Width
+        this.width = width;
+        // Height
+        this.height = height;
+        // Cushions
+        this.Cushion();
+    }
+
+    // Method to create cushions
+    Cushion() {
+        let options = {
+            // Cushion remain at the same spot and not move
+            isStatic: true, 
+            // To add bouncy for the cushions
+            restitution: 0.8,
+            // Label to identify the cushion for console output
+            label: 'Cushion'
+        };
+
+        // Calculate cushion lengths
+        let cushion_len_H = (this.width - 2 * (ball_diameter * 1.5)) / 2 + 500 ; // Horizontal cushion length
+        let cushion_len_V = this.height - (ball_diameter * 1.5) + 500; // Vertical cushion length
+
+        // Define the position for each cushion
+        let cushionData = [
+            // Top horizontal cushion
+            { x: width / 2, y: (height - this.height) / 2 + (ball_diameter * 1.5) / 2, rotation: 0 },
+            // Bottom horizontal cushion
+            { x: width / 2, y: (height + this.height) / 2 - (ball_diameter * 1.5) / 2, rotation: 0 },
+            // Left vertical cushion
+            { x: (width - this.width) / 2 + (ball_diameter * 1.5) / 2, y: height / 2, rotation: 270 },
+            // Right vertical cushion
+            { x: (width + this.width) / 2 - (ball_diameter * 1.5) / 2, y: height / 2, rotation: 90 }
+        ];
+
+        // Create and add cushions to the Matter.js world
+        cushionData.forEach(cushion => {
+            // Define vertices for the cushion
+            let length = cushion.rotation % 180 === 0 ? cushion_len_H : cushion_len_V;
+            let vertices = [
+                { x: -length / 2, y: -(ball_diameter * 1) / 2 },
+                { x: length / 2, y: -(ball_diameter * 1) / 2 },
+                { x: length / 2 - (ball_diameter * 1), y: (ball_diameter * 1) / 2 },
+                { x: -length / 2 + (ball_diameter * 1), y: (ball_diameter * 1) / 2 }
+            ];
+
+            // Cushion body
+            let cushionBody = Matter.Bodies.fromVertices(cushion.x, cushion.y, vertices, options, true);
+            Matter.Body.setAngle(cushionBody, radians(cushion.rotation));
+            World.add(engine.world, cushionBody);
+        });
+    }
+}
+
+class Ball {
+    // Constructor for the Ball class
+    constructor(colour, position, hasPhysics = true, redBallIndex = null) {
+        this.colour = colour;
+        this.position = position;
+        this.diameter = ball_diameter;
+        this.radius = this.diameter / 2;
+
+        // Load the image for the ball (only for red and white balls)
+        if (colour === 'red') {
+            this.image = ballImages.red[redBallIndex] || null; // Load red ball image based on the index
+        } else if (colour === 'white') {
+            this.image = ballImages.white;
+        } else {
+            this.image = ballImages[colour] || null; // Load other colored balls
+        }
+
+        // Create a circular mask for the image if it exists
+        if (this.image) {
+            // Ensure the diameter is an integer
+            let diameter = Math.floor(this.diameter);
+
+            this.maskImage = createImage(diameter, diameter);
+            this.maskImage.copy(this.image, 0, 0, this.image.width, this.image.height, 0, 0, diameter, diameter);
+            this.maskImage.mask(this.createCircleMask(diameter)); // Apply circular mask
+        }
+
+        // Create a physics body if necessary
+        if (hasPhysics) {
+            this.body = this.createPhysicalBall();
+            World.add(engine.world, this.body);
+        }
+    }
+
+    // Create a circular mask for the image
+    createCircleMask(diameter) {
+        let mask = createGraphics(diameter, diameter);
+        mask.ellipse(diameter / 2, diameter / 2, diameter, diameter);
+        return mask;
+    }
+
+    // Create a physical body for the ball
+    createPhysicalBall() {
+        let ballOptions = {
+            restitution: 0.8, // Bounciness
+            friction: 0.05, // Friction
+            frictionAir: 0.01, // Air friction
+            mass: 0.17, // Mass of the ball
+            label: 'Ball',
+            render: { fillStyle: this.colour } // Color for physics rendering
+        };
+        return Bodies.circle(this.position.x, this.position.y, this.radius, ballOptions);
+    }
+
+    // Display the ball on the canvas
+    display() {
+        if (this.image) {
+            imageMode(CENTER);
+            image(this.maskImage, this.body.position.x, this.body.position.y, this.diameter, this.diameter);
+        } else {
+            fill(this.colour);
+            ellipse(this.body.position.x, this.body.position.y, this.diameter, this.diameter);
+        }
+    }
+
+    // Static method to initialize balls on the table based on the selected game mode
+    static set_balls(mode) {
+        snooker_balls.forEach(ball => World.remove(engine.world, ball.body)); // Remove previous balls
+        snooker_balls = []; // Clear the balls array
+
+        // Mode 0: Starting Positions of the balls excluding the cue ball
+        if (mode === 0) {
+            Ball.Starting_Position();
+            score = 0;
+            lives=5;
+            console.log(`Mode 1. Scoring will start from ${score}`)
+        }
+
+        // Mode 1: Random positioning for red balls, excluding the cue ball
+        else if (mode === 1) {
+            // Create 15 random-positioned red balls (excluding cue ball)
+            for (let i = 0; i < 15; i++) {
+                snooker_balls.push(new Ball('red', Ball.createRandomPosition(), true, i)); // Pass the redBallIndex
+            }
+            score = 0;
+            lives=5;
+            console.log(`Mode 2. Scoring will start from ${score}`)
+        }
+
+        // Mode 2: Random positioning for all the balls, excluding the cue ball
+        else if (mode === 2) {
+            // Create and add red balls at random positions (excluding cue ball)
+            for (let i = 0; i < 15; i++) {
+                snooker_balls.push(new Ball('red', Ball.createRandomPosition(), true, i)); // Pass the redBallIndex
+            }
+    
+            // Create and add the colored balls (blue, green, brown, pink, black) at random positions
+            const coloredBalls = [ball_colour.yellow, ball_colour.green, ball_colour.brown, ball_colour.blue, ball_colour.pink, ball_colour.black];
+            coloredBalls.forEach(colour => {
+                snooker_balls.push(new Ball(colour, Ball.createRandomPosition()));
+            })
+            score = 0;
+            lives=5;
+            console.log(`Mode 3. Scoring will start from ${score}`)
+        }
+
+        // Create new cue ball and add it
+        let cueBall = new CueBall({ x: width / 4, y: height / 2 });
+        snooker_balls.push(cueBall);
+        window.cueBall = cueBall.body;
+        cue.cueBallInstance = cueBall;
+    }
+
+    // Static method to set up the standard starting positions of balls
+    static Starting_Position() {
+        let red_Pos = { x: width / 2 + ball_diameter * 7, y: height / 2 };
+        let row_len = 5;
+
+        // Start red ball index from 0
+        let redBallIndex = 0;
+        for (let row = 0; row < row_len; row++) {
+            for (let col = 0; col <= row; col++) {
+                let position = {
+                    x: red_Pos.x + (row * ball_diameter * Math.sqrt(3) / 2),
+                    y: red_Pos.y - (row * ball_diameter / 2) + (col * ball_diameter)
+                };
+
+                // Pass index for red balls
+                snooker_balls.push(new Ball('red', position, true, redBallIndex));
+                
+                // Increment index after each red ball
+                redBallIndex++;
+            }
+        }
+
+        // Put the color balls at the assigned position on the table   
+        snooker_balls.push(new Ball(ball_colour.yellow, { x: width / 2 - ball_diameter * 10.9, y: height / 2 + ball_diameter * 3 }));
+        snooker_balls.push(new Ball(ball_colour.green, { x: width / 2 - ball_diameter * 10.9, y: height / 2 - ball_diameter * 3 }));
+        snooker_balls.push(new Ball(ball_colour.brown, { x: width / 2 - ball_diameter * 10.9, y: height / 2 }));
+        snooker_balls.push(new Ball(ball_colour.blue, { x: width / 2, y: height / 2 }));
+        snooker_balls.push(new Ball(ball_colour.pink, { x: width / 2 + ball_diameter * 7 - ball_diameter, y: height / 2 }));
+        snooker_balls.push(new Ball(ball_colour.black, { x: width / 2 + ball_diameter * 13, y: height / 2 }));
+    }
+
+    // Static method to create random positions for balls with bounds check
+    static createRandomPosition() {
+        let x = random(ball_diameter, width - ball_diameter);
+        let y = random(ball_diameter, height - ball_diameter);
+
+        // Ensure the ball is within the bounds
+        x = constrain(x, ball_diameter, width - ball_diameter);
+        y = constrain(y, ball_diameter, height - ball_diameter);
+
+        return { x, y };
+    }
+}
+
+// CueBall class (White ball)
+class CueBall extends Ball {
+    constructor(position, hasPhysics = true) {
+        // Call the Ball constructor with color set to white for cue ball
+        super('white', position, hasPhysics); 
+
+        // Load the image for the cue ball
+        this.image = loadImage('images/cue.png', 
+            () => {
+                // Mask the image to ensure the image is circle
+                this.createMaskImage();
+            }    
+        );
+    }
+
+    // Create the masked image for the cue ball once the image is loaded
+    createMaskImage() {
+        if (this.image) {
+            let diameter = Math.floor(this.diameter);
+            // Create an image mask with the same diameter as the cue ball
+            this.maskImage = createImage(diameter, diameter); 
+            // Copy the image to fit the mask
+            this.maskImage.copy(this.image, 0, 0, this.image.width, this.image.height, 0, 0, diameter, diameter);
+            // Apply the circular mask to the image
+            this.maskImage.mask(this.createCircleMask(diameter));
+        }
+    }
+
+    // Override the display method to show the cue ball's image
+    display() {
+        // Check if the image is loaded before displaying
+        if (this.image && this.maskImage) {
+            imageMode(CENTER);
+            image(this.maskImage, this.body.position.x, this.body.position.y, this.diameter, this.diameter); // Draw the cue ball image with the mask
+        }
+    }
+
+    // To constrain the cue ball's position within bounds
+    constrainPosition() {
+        if (this.body) {
+            this.body.position.x = constrain(this.body.position.x, this.radius, width - this.radius);
+            this.body.position.y = constrain(this.body.position.y, this.radius, height - this.radius);
+        }
+    }
+
+    // Create a circular mask for the cue ball image
+    createCircleMask(diameter) {
+        let mask = createGraphics(diameter, diameter);
+        mask.ellipse(diameter / 2, diameter / 2, diameter, diameter);
+        return mask;
+    }
+}
